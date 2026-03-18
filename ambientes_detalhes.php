@@ -23,13 +23,7 @@
 <body>
    
 
-<div class="container mt-5">
-        <div class="card shadow mx-auto" style="max-width: 600px;">
-            <div class="card-header bg-primary text-white d-flex justify-content-between">
-                <h4 class="mb-0">Registrar Ambiente</h4>
-                <a href="dashboard_ambientes.php" class="btn btn-sm btn-outline-light">Voltar</a>
-            </div>
-            <div class="card-body">
+ <div class="card-body">
                 <form id="formChamado">
                     <div class="mb-3">
                         <label class="form-label">Bloco</label>
@@ -50,20 +44,122 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Descrição do Local</label>
+                        <label class="form-label">Descrição do Problema</label>
                         <textarea id="descricao" class="form-control" rows="4"
-                         required placeholder="Ex: É aberto e com bastante paisagem..."></textarea>
+                         required placeholder="Ex: Lâmpada queimada ou vazamento..."></textarea>
                     </div>
                     <div class="mb-3">
-            <label class="form-label">Foto da Ocorrencia(Opcional)</label>
+            <label class="form-label">Foto da Ocorrência (Opcional)</label>
             <input type="file" id="foto" class="form-control" accept="image/*">
         </div>
-                    <button type="submit" class="btn btn-primary w-100">Registrar Local</button>
+                    <button type="submit" class="btn btn-primary w-100">Registrar Solicitação</button>
                 </form>
             </div>
         </div>
     </div>
 
-</body>
+    <script>
+        // Carrega Blocos e Tipos ao iniciar
+        async function iniciar() {
+            // Blocos
+            const resB = await fetch('api/localizacoes.php?acao=listar_blocos');
+            const blocos = await resB.json();
+            const selB = document.getElementById('selectBloco');
+            blocos.forEach(b => selB.innerHTML += `<option value="${b.id_bloco}">${b.nome}</option>`);
 
+            // Tipos
+            const resT = await fetch('api/localizacoes.php?acao=listar_tipos');
+            const tipos = await resT.json();
+            const selT = document.getElementById('selectTipo');
+            tipos.forEach(t => selT.innerHTML += `<option value="${t.id_tipo}">${t.nome}</option>`);
+        }
+
+        // Carrega Ambientes dinamicamente quando o Bloco muda
+        async function carregarAmbientes(id_bloco) {
+            const selA = document.getElementById('selectAmbiente');
+            if (!id_bloco) { selA.disabled = true; return; }
+            
+            const res = await fetch(`api/localizacoes.php?acao=listar_ambientes&id_bloco=${id_bloco}`);
+            const ambientes = await res.json();
+            
+            selA.innerHTML = '<option value="">Selecione a Sala...</option>';
+            ambientes.forEach(a => selA.innerHTML += `<option value="${a.id_ambiente}">${a.nome}</option>`);
+            selA.disabled = false;
+        }
+
+document.getElementById('formChamado').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData();
+    formData.append('id_ambiente', document.getElementById('selectAmbiente').value);
+    formData.append('id_tipo', document.getElementById('selectTipo').value);
+    formData.append('descricao', document.getElementById('descricao').value);
+    const fotoFile = document.getElementById('foto').files[0];
+    if (fotoFile) {
+        formData.append('foto', fotoFile);
+    }
+    const response = await fetch('api/salvar_chamado.php', {
+        method: 'POST',
+        body: formData
+    });
+    const result = await response.json();
+    if (result.success) {
+        alert(result.message);
+        window.location.href = 'dashboard_ambientes.php';
+    } else {
+        alert("Erro: " + result.message);
+    }
+});
+
+        iniciar();
+
+<div class="modal fade" id="modalFoto" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body p-0 text-center bg-dark">
+                <img src="" id="imgModal" class="img-fluid">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script&gt;
+<script>
+    function verFoto(url) {
+        document.getElementById('imgModal').src = url;
+        new bootstrap.Modal(document.getElementById('modalFoto')).show();
+    }
+</script>
+    <script>
+        const coresPrioridade = { 'urgente': 'text-danger', 'alta': 'text-warning', 'media': 'text-primary', 'baixa': 'text-secondary' };
+        const coresStatus = { 'aberto': 'bg-secondary', 'em_execucao': 'bg-warning', 'concluido': 'bg-success', 'fechado': 'bg-dark' };
+
+        async function carregarChamados(status = '') {
+            const res = await fetch(`api/dashboard_ambientes.php?status=${status}`);
+            const chamados = await res.json();
+            const body = document.getElementById('tabelaGeral');
+
+            body.innerHTML = chamados.map(c => `
+                <tr>
+                    <td>#${c.id_chamado}</td>
+                    <td>${c.solicitante_nome}</td>
+                    <td>
+                        <small class="text-muted">${c.bloco_nome}</small><br>
+                        <strong>${c.ambiente_nome}</strong>
+                    </td>
+                    <td><i class="bi bi-circle-fill ${coresPrioridade[c.prioridade]} me-1"></i> ${c.prioridade.toUpperCase()}</td>
+                    <td>${c.tecnico_nome || '<em class="text-muted">Não atribuído</em>'}</td>
+                    <td><span class="badge ${coresStatus[c.status]}">${c.status.replace('_', ' ').toUpperCase()}</span></td>
+                    <td>
+                        <a href="gestor_detalhes.php?id=${c.id_chamado}" class="btn btn-sm btn-primary">
+                            <i class="bi bi-eye"></i> Gerenciar
+                        </a>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        carregarChamados();
 </html>
